@@ -6,36 +6,43 @@ import logging
 import select
 import socket
 
-from pykit import stopwatch
+from . import stopwatch
 
 logger = logging.getLogger(__name__)
 
 
 class HttpError(Exception):
+    # The base class of the other exceptions in this module. It is a subclass of 'Exception'.
     pass
 
 
 class LineTooLongError(HttpError):
+    # A subclass of 'HttpError'. Raise if length of line is greater or equal than 65536 when read response status line, headers and get length of chunked block.
     pass
 
 
 class ChunkedSizeError(HttpError):
+    # A subclass of 'HttpError'. Raise if failed to get length of chunked block.
     pass
 
 
 class NotConnectedError(HttpError):
+    # A subclass of 'HttpError'. Raise if send data without connecting to server.
     pass
 
 
 class ResponseNotReadyError(HttpError):
+    # A subclass of 'HttpError'. Raise if response is unavailable.
     pass
 
 
 class HeadersError(HttpError):
+    # A subclass of 'HttpError'. Raise if failed to read response headers.
     pass
 
 
 class BadStatusLineError(HttpError):
+    # A subclass of 'HttpError'. Raise if failed to read response status line.
     pass
 
 
@@ -44,8 +51,17 @@ LINE_RECV_LENGTH = 1024 * 4
 
 
 class Client(object):
+    """
+    HTTP client class
 
-    stopwatch_root_name = 'pykit.http.Client'
+    :param host: server address, ip or domain, type is 'str'
+    :param port: server port, type is 'int'
+    :param timeout: set a timeout on blocking socket operations, unit is second, default is 60. The value argument can be a nonnegative float expressing seconds, or 'None'. if 'None', it is equivalent to 'socket.setblocking(1)'. if '0.0', it is equivalent to 'socket.setblocking(0)'.
+    :param stopwatch_kwargs: is an dictionary used as keyword arguments when initializing stopwatch instance.
+    :param https_context: a 'ssl.SSLContext' instance describing the various SSL options. Defaults to 'None'.
+    """
+
+    stopwatch_root_name = 'k3http.Client'
 
     def __init__(self, host, port, timeout=60,
                  stopwatch_kwargs=None, https_context=None):
@@ -77,6 +93,26 @@ class Client(object):
         self.stopwatch_started = False
 
     def get_trace_str(self):
+        """
+
+        :return: a string shows time spent on each phase of a request. The following fields would presents in it:
+
+        conn: 0.000001 -;
+        send_header: 0.000000 -;
+        recv_status: 0.000000 -;
+        recv_header: 0.000000 -;
+        recv_body: 0.000000 -;
+        recv_body: 0.000000 -;
+        exception: 0.000000 -;
+        pykit.http.Client: 0.000002 Exception:ValueError
+
+        The numbers are time in second.
+        There might be less fields in the result, if request failed.
+        It is also possible some of the above fields appear more than once.
+        For example if a server responds a '100-Continue' status line and a '200-OK' status line, there would be two 'recv_status' fields.
+        If the caller calls 'http.Client.read_body' more than one time, there would be more than one 'recv_body' fields.
+        """
+
         tr = self.get_trace()
         rst = []
         for t in tr:
@@ -133,12 +169,30 @@ class Client(object):
         self._close()
 
     def request(self, uri, method='GET', headers=None):
+        """
+        Send http request without body and read response status line, headers.
+        After it, get response status code with 'http.Client.status',
+        get response headers with 'http.Client.headers'.
+
+        :param uri: specifies the object being requested
+        :param method: specifies an HTTP request method
+        :param headers: a 'dict'(header name, header value) of http request headers
+        :return: nothing
+        """
 
         self.send_request(uri, method=method, headers=headers)
 
         self.read_response()
 
     def send_request(self, uri, method='GET', headers=None):
+        """
+        Connect to server and send http request.
+
+        :param uri: specifies the object being requested
+        :param method: specifies an HTTP request method
+        :param headers: a 'dict'(header name, header value) of http request headers
+        :return: nothing
+        """
 
         self._reset_request()
         self.method = method
@@ -168,9 +222,15 @@ class Client(object):
         bufs.extend(['', ''])
 
         with self.stopwatch.timer('send_header'):
-            self.sock.sendall('\r\n'.join(bufs))
+            self.sock.sendall(('\r\n'.join(bufs)).encode('utf-8'))
 
     def send_body(self, body):
+        """
+        Send http request body. It should be a 'str' of data to send after the headers are finished
+
+        :param body: a 'str' of http request body.
+        :return: nothing
+        """
 
         if self.sock is None:
             raise NotConnectedError('socket object is None')
@@ -179,16 +239,22 @@ class Client(object):
             if self.request_chunked_encoded:
                 body = '{0:x}\r\n{1}\r\n'.format(len(body), body)
 
-            self.sock.sendall(body)
+            self.sock.sendall(body.encode('utf-8'))
 
     def read_status(self, skip_100=True):
+        """
+        Read response status line and return the status code. Cache the response status code with http.Client.status
+
+        :param skip_100: nothing
+        :return: response status code.
+        """
 
         if self.status is not None or self.sock is None:
             raise ResponseNotReadyError('response is unavailable')
 
         if self.recv_iter is None:
             self.recv_iter = _recv_loop(self.sock, self.timeout)
-            self.recv_iter.next()
+            next(self.recv_iter)
 
         # read until we get a non-100 response
         while True:
@@ -249,6 +315,16 @@ class Client(object):
         return self.headers
 
     def read_response(self):
+        """
+        Read response status line, headers and return them.
+        Cache the status code with 'http.Client.status' Cache the response headers with 'http.Client.headers'
+
+        :return: two values,
+
+                status: response status code, type is int
+
+                headers: response headers, it is a dict(header name , header value).
+        """
 
         self.read_status()
         self.read_headers()
@@ -256,11 +332,23 @@ class Client(object):
         return self.status, self.headers
 
     def read_body(self, size):
+        """
+        Read and return the response body.
+
+        :param size: need read size, if greater than left size use the min one, if 'None' read left unread body.
+        :return: the response body.
+        """
 
         with self.stopwatch.timer('recv_body'):
             return self._read_body(size)
 
     def readlines(self, delimiter=None):
+        """
+        Read and yield one line in response body each time.
+
+        :param delimiter: specify the delimiter between each line, defalut supporting '\n'.
+        :return: a generator yileding one line including delimiter in response body each time.
+        """
 
         if delimiter is None:
             delimiter = '\n'
@@ -427,7 +515,6 @@ class Client(object):
 
 
 def _recv_loop(sock, timeout):
-
     bufs = ['']
     mode, size = yield
 
@@ -464,11 +551,10 @@ def _recv_loop(sock, timeout):
 
 
 def _recv(sock, timeout, size):
-
     buf = ''
     for _ in range(2):
         try:
-            buf = sock.recv(size)
+            buf = (sock.recv(size)).decode('utf-8')
             break
         except socket.error as e:
             if len(e.args) <= 0 or e.args[0] != errno.EAGAIN:

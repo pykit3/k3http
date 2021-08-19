@@ -3,7 +3,7 @@
 
 import unittest
 
-from pykit import http
+import k3http
 
 class TestUtil(unittest.TestCase):
 
@@ -23,7 +23,7 @@ class TestUtil(unittest.TestCase):
         for case, expected in cases:
 
             self.assertEqual(
-                expected, http.headers_add_host(case[0], case[1]))
+                expected, k3http.headers_add_host(case[0], case[1]))
 
     def test_requesr_add_host(self):
 
@@ -70,4 +70,4 @@ class TestUtil(unittest.TestCase):
 
         for case, expected in cases:
             self.assertEqual(
-                expected, http.request_add_host(case[0], case[1]))
+                expected, k3http.request_add_host(case[0], case[1]))
