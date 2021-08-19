@@ -22,20 +22,27 @@ Documentation for the Code
 Exceptions
 ----------
 
-.. autoexception::  SomeError
+.. autoexception::  HttpError
+.. autoexception::  LineTooLongError
+.. autoexception::  ChunkedSizeError
+.. autoexception::  NotConnectedError
+.. autoexception::  ResponseNotReadyError
+.. autoexception::  HeadersError
+.. autoexception::  BadStatusLineError
 
 
 Classes
 ----------
 
-.. autoclass::  Bar
-    :members:
+.. autoclass::  Client
 
 
 Functions
 ---------
 
-.. autofunction::  foo
+.. autofunction::  headers_add_host
+.. autofunction::  request_add_host
+
 
 Indices and tables
 ==================
