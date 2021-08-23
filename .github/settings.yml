@@ -1,0 +1,7 @@
+_extends: gh-config
+
+repository:
+  description: We find that 'httplib' must work in blocking mode and it can not have a timeout when recving response.
+  homepage: https://blog.openacid.com
+  topics: python, http
+
