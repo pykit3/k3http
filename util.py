@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # coding: utf-8
 
-import copy
 
 def headers_add_host(headers, address):
     """
@@ -12,9 +11,10 @@ def headers_add_host(headers, address):
     :return: headers after adding
     """
 
-    headers.setdefault('Host', address)
+    headers.setdefault("Host", address)
 
     return headers
+
 
 def request_add_host(request, address):
     """
@@ -25,7 +25,7 @@ def request_add_host(request, address):
     :return: request after adding
     """
 
-    request.setdefault('headers', {})
-    request['headers'].setdefault('Host', address)
+    request.setdefault("headers", {})
+    request["headers"].setdefault("Host", address)
 
     return request

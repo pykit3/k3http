@@ -3,17 +3,17 @@ import urllib
 import socket
 
 headers = {
-    'Host': '127.0.0.1',
-    'Accept-Language': 'en, mi',
+    "Host": "127.0.0.1",
+    "Accept-Language": "en, mi",
 }
 
 try:
-    h = k3http.Client('127.0.0.1', 80)
+    h = k3http.Client("127.0.0.1", 80)
 
     # send http reqeust without body
     # read response status line
     # read response headers
-    h.request('/test.txt', method='GET', headers=headers)
+    h.request("/test.txt", method="GET", headers=headers)
 
     status = h.status
     # response code return from http server, type is int
@@ -36,19 +36,18 @@ except (socket.error, k3http.HttpError) as e:
     print(repr(e))
 
 
-
-content = urllib.urlencode({'f': 'foo', 'b': 'bar'})
+content = urllib.urlencode({"f": "foo", "b": "bar"})
 headers = {
-    'Host': 'www.example.com',
-    'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
-    'Content-Length': len(content),
+    "Host": "www.example.com",
+    "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+    "Content-Length": len(content),
 }
 
 try:
-    h = k3http.Client('127.0.0.1', 80)
+    h = k3http.Client("127.0.0.1", 80)
 
     # send http reqeust
-    h.send_request('http://www.example.com', method='POST', headers=headers)
+    h.send_request("http://www.example.com", method="POST", headers=headers)
 
     # send http request body
     h.send_body(content)
