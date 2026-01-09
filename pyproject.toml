@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "k3http"
-version = "0.1.3"
+version = "0.1.4"
 description = "HTTP/1.1 client with timeout support"
 readme = "README.md"
 license = {text = "MIT"}
