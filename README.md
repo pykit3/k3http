@@ -1,7 +1,6 @@
 # k3http
 
 [![Action-CI](https://github.com/pykit3/k3http/actions/workflows/python-package.yml/badge.svg)](https://github.com/pykit3/k3http/actions/workflows/python-package.yml)
-[![Build Status](https://travis-ci.com/pykit3/k3http.svg?branch=master)](https://travis-ci.com/pykit3/k3http)
 [![Documentation Status](https://readthedocs.org/projects/k3http/badge/?version=stable)](https://k3http.readthedocs.io/en/stable/?badge=stable)
 [![Package](https://img.shields.io/pypi/pyversions/k3http)](https://pypi.org/project/k3http)
 
