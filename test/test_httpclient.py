@@ -380,7 +380,9 @@ class TestHttpClient(unittest.TestCase):
             self.http_server = HTTPServer(addr, Handle)
             if "https" in self._testMethodName:
                 cert_file = os.path.join(HOME_PATH, "test_https.pem")
-                self.http_server.socket = ssl.wrap_socket(self.http_server.socket, certfile=cert_file, server_side=True)
+                context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                context.load_cert_chain(cert_file)
+                self.http_server.socket = context.wrap_socket(self.http_server.socket, server_side=True)
             self.http_server.serve_forever()
 
     def _special_case_handle(self):
