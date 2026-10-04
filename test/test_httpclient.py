@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# coding: utf-8
-
 import gc
 import os
 import socket
@@ -8,12 +5,12 @@ import ssl
 import threading
 import time
 import unittest
-from http.server import BaseHTTPRequestHandler
-from http.server import HTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import ClassVar
 
-import k3http
 import k3ut
 
+import k3http
 
 dd = k3ut.dd
 
@@ -26,7 +23,7 @@ HOME_PATH = os.path.dirname(os.path.abspath(__file__))
 
 
 class TestHttpClient(unittest.TestCase):
-    special_cases = {
+    special_cases: ClassVar[dict] = {
         "test_recving_server_close": (0, 1, b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\n"),
         "test_server_delay_response": (0.5, 1, b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nabcd"),
         "test_raise_chunked_size_error": (0, 10, b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nfoo\r\n"),
@@ -52,8 +49,8 @@ class TestHttpClient(unittest.TestCase):
             b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n8\r\n\x89PNG\r\n\x1a\n\r\n0\r\n\r\n",
         ),
     }
-    request_headers = {}
-    request_body = {}
+    request_headers: ClassVar[dict] = {}
+    request_body = b""
 
     def test_raise_connnect_error(self):
         h = k3http.Client(HOST, PORT)
@@ -274,11 +271,9 @@ class TestHttpClient(unittest.TestCase):
         try:
             h.request("")
             h.read_body(1024)
-        except socket.error as e:
+        except OSError as e:
             dd(repr(e) + " while recv server close")
             succ = True
-        except Exception as e:
-            dd(repr(e) + " unexpected exception")
 
         self.assertTrue(succ)
 
@@ -329,7 +324,7 @@ class TestHttpClient(unittest.TestCase):
         try:
             with h.stopwatch.timer("exception"):
                 raise FakeErrorDuringHTTP(3)
-        except Exception:
+        except FakeErrorDuringHTTP:
             pass
 
         trace = h.get_trace()
@@ -345,7 +340,7 @@ class TestHttpClient(unittest.TestCase):
 
         for i, k in enumerate(ks):
             self.assertEqual(k, trace[i]["name"])
-            self.assertEqual(type(0.1), type(trace[i]["time"]))
+            self.assertEqual(float, type(trace[i]["time"]))
 
         names = [x["name"] for x in trace]
         self.assertEqual(
@@ -394,7 +389,7 @@ class TestHttpClient(unittest.TestCase):
             self.assertEqual(expected_res, body)
 
     def __init__(self, *args, **kwargs):
-        super(TestHttpClient, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.server_thread = None
         self.http_server = None
 
@@ -471,7 +466,7 @@ class TestHttpClient(unittest.TestCase):
                     conn.sendall(content[:each_send_size])
                     content = content[each_send_size:]
                     time.sleep(sleep_time)
-            except socket.error as e:
+            except OSError as e:
                 dd(repr(e) + " while response")
 
         time.sleep(1)
@@ -480,7 +475,7 @@ class TestHttpClient(unittest.TestCase):
 
 
 class Handle(BaseHTTPRequestHandler):
-    all_responses = {
+    all_responses: ClassVar[dict] = {
         "/invalid_content_len": (200, {"content-length": "abc"}, (0, "")),
         "/invalid_header": (200, {}, (0, "")),
         "/get_1b": (200, {"content-length": 1}, (1, "a")),
@@ -489,15 +484,15 @@ class Handle(BaseHTTPRequestHandler):
         "/get_10b_chunked": (200, {"Transfer-Encoding": "chunked"}, (5, "f" * 10)),
         "/get_10k_chunked": (200, {"Transfer-Encoding": "chunked"}, (KB, "gh" * 5 * KB)),
         "/get_30m_chunked": (200, {"Transfer-Encoding": "chunked"}, (10 * MB, "ijk" * 10 * MB)),
-        "/get_10b_range": (206, {"Content-Range": "bytes %d-%d/%d" % (2, 8, 10), "Content-Length": 7}, (5, "l" * 10)),
+        "/get_10b_range": (206, {"Content-Range": "bytes 2-8/10", "Content-Length": 7}, (5, "l" * 10)),
         "/get_10k_range": (
             206,
-            {"Content-Range": "bytes %d-%d/%d" % (KB, 8 * KB, 10 * KB), "Content-Length": 7 * KB + 1},
+            {"Content-Range": f"bytes {KB}-{8 * KB}/{10 * KB}", "Content-Length": 7 * KB + 1},
             (KB, "mn" * 5 * KB),
         ),
         "/get_30m_range": (
             206,
-            {"Content-Range": "bytes %d-%d/%d" % (2 * MB, 25 * MB, 30 * MB), "Content-Length": 23 * MB + 1},
+            {"Content-Range": f"bytes {2 * MB}-{25 * MB}/{30 * MB}", "Content-Length": 23 * MB + 1},
             (10 * MB, "opq" * 10 * MB),
         ),
         "/get_200": (200, {"content-length": 1}, (0, "")),
@@ -532,9 +527,9 @@ class Handle(BaseHTTPRequestHandler):
                 return
             else:
                 protocol = self.protocol_version
-            self.wfile.write(("%s %d %s\r\n" % (protocol, code, message)).encode("utf-8"))
+            self.wfile.write(f"{protocol} {code} {message}\r\n".encode())
             if self.path == "/invalid_header":
-                self.wfile.write(("foo\r\n").encode("utf-8"))
+                self.wfile.write(b"foo\r\n")
 
     def do_PUT(self):
         try:
@@ -555,7 +550,7 @@ class Handle(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Length", 0)
             self.end_headers()
-        except Exception as e:
+        except OSError as e:
             dd(repr(e) + " while parse put request")
 
     def do_GET(self):
@@ -576,7 +571,9 @@ class Handle(BaseHTTPRequestHandler):
             self.end_headers()
 
             self._send_body(headers, body)
-        except Exception as e:
+        except (OSError, AttributeError) as e:
+            # The malformed responses, such as /invalid_line, send no header,
+            # so end_headers() raises AttributeError.
             dd(repr(e) + " while parse get request")
 
     def _send_body(self, headers, body):
@@ -589,13 +586,13 @@ class Handle(BaseHTTPRequestHandler):
                     ext = ""
                 else:
                     ext = ";extname"
-                send_buf = "%x%s\r\n%s\r\n" % (len(send_buf), ext, send_buf)
+                send_buf = f"{len(send_buf):x}{ext}\r\n{send_buf}\r\n"
 
             self.wfile.write(send_buf.encode("utf-8"))
             data = data[each_send_size:]
 
         if "Transfer-Encoding" in headers:
-            self.wfile.write(("0\r\n\r\n").encode("utf-8"))
+            self.wfile.write(b"0\r\n\r\n")
 
     def _get_body(self, headers, body):
         each_send_size, data = body

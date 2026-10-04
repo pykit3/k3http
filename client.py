@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# coding: utf-8
 
 import errno
 import logging
@@ -50,7 +49,7 @@ MAX_LINE_LENGTH = 65536
 LINE_RECV_LENGTH = 1024 * 4
 
 
-class Client(object):
+class Client:
     """
     HTTP client class
 
@@ -125,11 +124,11 @@ class Client(object):
         sw = self.get_and_end_stopwatch()
         rst = []
         for t in sw.get_last_trace_report():
-            ent = dict(
-                name=t.name,
-                time=t.end_time - t.start_time,
-                annotation=[self._human_annotation(an) for an in t.trace_annotations],
-            )
+            ent = {
+                "name": t.name,
+                "time": t.end_time - t.start_time,
+                "annotation": [self._human_annotation(an) for an in t.trace_annotations],
+            }
 
             rst.append(ent)
 
@@ -137,7 +136,7 @@ class Client(object):
 
     def _human_annotation(self, annotation):
         an = annotation
-        return "{key}:{value}".format(key=an.key, value=an.value)
+        return f"{an.key}:{an.value}"
 
     def get_and_end_stopwatch(self):
         """stopwatch must be stopped before it can be read"""
@@ -198,7 +197,7 @@ class Client(object):
                 self.sock = self.https_context.wrap_socket(self.sock, server_hostname=self.host)
 
         bufs = [
-            "{method} {uri} HTTP/1.1".format(method=method, uri=uri),
+            f"{method} {uri} HTTP/1.1",
         ]
 
         headers = headers or {}
@@ -209,7 +208,7 @@ class Client(object):
             self.request_chunked_encoded = True
 
         for k, v in headers.items():
-            bufs.append("%s: %s" % (k, v))
+            bufs.append(f"{k}: {v}")
 
         bufs.extend(["", ""])
 
@@ -280,7 +279,7 @@ class Client(object):
 
                 kv = line.strip().split(":", 1)
                 if len(kv) < 2:
-                    raise HeadersError("invalid headers param line:%s" % (line))
+                    raise HeadersError(f"invalid headers param line:{line}")
                 self.headers[kv[0].lower()] = kv[1].strip()
 
         if self.status in (204, 304) or self.method == "HEAD":
@@ -297,7 +296,7 @@ class Client(object):
         try:
             self.content_length = int(length)
         except ValueError as e:
-            logger.error(repr(e) + " while get content-length length:{l}".format(l=length))
+            logger.error(repr(e) + f" while get content-length length:{length}")
             raise HeadersError("invalid content-length")
 
         return self.headers
@@ -384,16 +383,16 @@ class Client(object):
         if self.recv_iter is not None:
             try:
                 self.recv_iter.close()
-            except Exception as e:
-                logger.exception(repr(e) + " while close recv_iter")
+            except Exception:
+                logger.exception("while close recv_iter")
 
         self.recv_iter = None
 
         if self.sock is not None:
             try:
                 self.sock.close()
-            except Exception as e:
-                logger.exception(repr(e) + " while close sock")
+            except Exception:
+                logger.exception("while close sock")
 
         self.sock = None
 
@@ -420,7 +419,7 @@ class Client(object):
 
         vals = line.split(None, 2)
         if len(vals) < 2:
-            raise BadStatusLineError("invalid status line:{l}".format(l=line))
+            raise BadStatusLineError(f"invalid status line:{line}")
 
         ver, status = vals[0], vals[1]
 
@@ -428,10 +427,10 @@ class Client(object):
             status = int(status)
         except ValueError as e:
             logger.error(repr(e) + " while get response status")
-            raise BadStatusLineError("status is not int:{l}".format(l=line))
+            raise BadStatusLineError(f"status is not int:{line}")
 
         if not ver.startswith("HTTP/") or status < 100 or status > 999:
-            raise BadStatusLineError("invalid status line:{l}".format(l=line))
+            raise BadStatusLineError(f"invalid status line:{line}")
 
         return status
 
@@ -446,7 +445,7 @@ class Client(object):
         try:
             chunk_size = int(line, 16)
         except ValueError as e:
-            logger.error(repr(e) + " while get chunk size line:{l}".format(l=line))
+            logger.error(repr(e) + f" while get chunk size line:{line}")
             raise ChunkedSizeError("invalid chunk size")
 
         return chunk_size
@@ -506,7 +505,7 @@ def _recv_loop(sock, timeout):
                 continue
             else:
                 if len(buf) >= MAX_LINE_LENGTH:
-                    raise LineTooLongError("line length greater than max_len:{l}".format(l=len(buf)))
+                    raise LineTooLongError(f"line length greater than max_len:{len(buf)}")
                 else:
                     buf += _recv(sock, timeout, LINE_RECV_LENGTH)
                     bufs[0] = buf
@@ -532,16 +531,16 @@ def _recv(sock, timeout, size):
         try:
             buf = sock.recv(size)
             break
-        except socket.error as e:
+        except OSError as e:
             if len(e.args) <= 0 or e.args[0] != errno.EAGAIN:
                 raise
 
-            evin, evout, everr = select.select([sock.fileno()], [], [], timeout)
+            evin, _evout, _everr = select.select([sock.fileno()], [], [], timeout)
 
             if len(evin) <= 0:
-                raise socket.timeout("{second}s timeout while recv".format(second=timeout))
+                raise socket.timeout(f"{timeout}s timeout while recv")
 
     if len(buf) <= 0:
-        raise socket.error("got empty when recv {l} bytes".format(l=size))
+        raise OSError(f"got empty when recv {size} bytes")
 
     return buf

@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# coding: utf-8
-
-
 def headers_add_host(headers, address):
     """
     If there is no Host field in the headers, insert the address as a Host into the headers.

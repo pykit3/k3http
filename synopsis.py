@@ -1,6 +1,6 @@
-import k3http
 import urllib
-import socket
+
+import k3http
 
 headers = {
     "Host": "127.0.0.1",
@@ -32,7 +32,7 @@ try:
 
     # get response body
     print(h.read_body(None))
-except (socket.error, k3http.HttpError) as e:
+except (OSError, k3http.HttpError) as e:
     print(repr(e))
 
 
@@ -57,5 +57,5 @@ try:
 
     # read response body
     print(h.read_body(None))
-except (socket.error, k3http.HttpError) as e:
+except (OSError, k3http.HttpError) as e:
     print(repr(e))

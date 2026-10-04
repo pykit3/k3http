@@ -22,26 +22,26 @@ import socket
 
 # Simple GET request
 try:
-    h = k3http.Client('127.0.0.1', 80)
-    h.request('/test.txt', method='GET', headers={'Host': '127.0.0.1'})
+    h = k3http.Client("127.0.0.1", 80)
+    h.request("/test.txt", method="GET", headers={"Host": "127.0.0.1"})
 
-    print(h.status)   # 200, 404, etc.
+    print(h.status)  # 200, 404, etc.
     print(h.headers)  # {'Content-Type': '...', ...}
     print(h.read_body(None))  # response body
 except (socket.error, k3http.HttpError) as e:
     print(repr(e))
 
 # POST request with body
-content = b'foo=bar'
+content = b"foo=bar"
 headers = {
-    'Host': 'www.example.com',
-    'Content-Type': 'application/x-www-form-urlencoded',
-    'Content-Length': len(content),
+    "Host": "www.example.com",
+    "Content-Type": "application/x-www-form-urlencoded",
+    "Content-Length": len(content),
 }
 
 try:
-    h = k3http.Client('127.0.0.1', 80)
-    h.send_request('/api', method='POST', headers=headers)
+    h = k3http.Client("127.0.0.1", 80)
+    h.send_request("/api", method="POST", headers=headers)
     h.send_body(content)
     status, headers = h.read_response()
     print(h.read_body(None))

@@ -9,30 +9,29 @@ from importlib.metadata import version
 __version__ = version("k3http")
 
 from .client import (
+    BadStatusLineError,
+    ChunkedSizeError,
+    Client,
+    HeadersError,
     HttpError,
     LineTooLongError,
-    ChunkedSizeError,
     NotConnectedError,
     ResponseNotReadyError,
-    HeadersError,
-    BadStatusLineError,
-    Client,
 )
-
 from .util import (
     headers_add_host,
     request_add_host,
 )
 
 __all__ = [
+    "BadStatusLineError",
+    "ChunkedSizeError",
+    "Client",
+    "HeadersError",
     "HttpError",
     "LineTooLongError",
-    "ChunkedSizeError",
     "NotConnectedError",
     "ResponseNotReadyError",
-    "HeadersError",
-    "BadStatusLineError",
-    "Client",
     "headers_add_host",
     "request_add_host",
 ]
