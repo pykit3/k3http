@@ -27,18 +27,30 @@ HOME_PATH = os.path.dirname(os.path.abspath(__file__))
 
 class TestHttpClient(unittest.TestCase):
     special_cases = {
-        "test_recving_server_close": (0, 1, "HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\n"),
-        "test_server_delay_response": (0.5, 1, "HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nabcd"),
-        "test_raise_chunked_size_error": (0, 10, "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nfoo\r\n"),
-        "test_raise_socket_timeout": (3, 1, "H"),
-        "test_raise_line_too_long_error": (0, KB, "a" * 65536),
+        "test_recving_server_close": (0, 1, b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\n"),
+        "test_server_delay_response": (0.5, 1, b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nabcd"),
+        "test_raise_chunked_size_error": (0, 10, b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nfoo\r\n"),
+        "test_raise_socket_timeout": (3, 1, b"H"),
+        "test_raise_line_too_long_error": (0, KB, b"a" * 65536),
         "test_request_chunked": (),
+        "test_send_body_chunked_utf8": (),
         "test_readlines": (
             0,
             10,
-            "HTTP/1.1 200 OK\r\nContent-Length: 131086\r\n\r\n" + "a" * 65540 + "\r\nbb\r\n" + "c" * 65540,
+            b"HTTP/1.1 200 OK\r\nContent-Length: 131086\r\n\r\n" + b"a" * 65540 + b"\r\nbb\r\n" + b"c" * 65540,
         ),
-        "test_readlines_delimiter": (0, 10, "HTTP/1.1 200 OK\r\nContent-Length: 15\r\n\r\nabcd\rbcde\rcdef\r"),
+        "test_readlines_delimiter": (0, 10, b"HTTP/1.1 200 OK\r\nContent-Length: 15\r\n\r\nabcd\rbcde\rcdef\r"),
+        # The first send ends inside the 3-byte "中", the second send completes it.
+        "test_read_body_utf8_split_across_recv": (
+            0.1,
+            39,
+            b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\n" + "中".encode(),
+        ),
+        "test_read_body_chunked_binary": (
+            0,
+            KB,
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n8\r\n\x89PNG\r\n\x1a\n\r\n0\r\n\r\n",
+        ),
     }
     request_headers = {}
     request_body = {}
@@ -125,7 +137,7 @@ class TestHttpClient(unittest.TestCase):
         for uri, each_read_size, expected_res, content_range, chunked in cases:
             h.request(uri)
 
-            bufs = ""
+            bufs = b""
             if each_read_size is None:
                 bufs = h.read_body(None)
                 self.assertEqual(h.has_read, len(bufs))
@@ -141,7 +153,8 @@ class TestHttpClient(unittest.TestCase):
             if len(content_range) >= 2:
                 start, end = content_range[0], content_range[1] + 1
 
-            self.assertEqual(expected_res[start:end], bufs)
+            expected = expected_res[start:end].encode("utf-8")
+            self.assertEqual(expected, bufs)
             self.assertEqual(None if chunked else len(bufs), h.content_length)
             self.assertEqual(chunked, h.chunked)
 
@@ -168,6 +181,17 @@ class TestHttpClient(unittest.TestCase):
         for body, status in cases:
             h.send_body(body)
             self.assertEqual(h.read_status(False), status)
+
+    def test_send_body_chunked_utf8(self):
+        # The chunk size must count the 3 UTF-8 bytes of "中", not 1 char.
+        h = k3http.Client(HOST, PORT)
+        h.send_request("", "PUT", {"Transfer-Encoding": "chunked"})
+        h.send_body("中")
+        h.send_body("")
+        h.read_response()
+
+        chunks = self.request_body.split(b"\r\n\r\n", 1)[1]
+        self.assertEqual(b"3\r\n\xe4\xb8\xad\r\n0\r\n\r\n", chunks)
 
     def test_request_headers(self):
         cases = (
@@ -198,9 +222,10 @@ class TestHttpClient(unittest.TestCase):
 
     def test_send_body(self):
         cases = (
-            ("/put_1b", "a", {"Content-Length": 1}),
-            ("/put_10k", "bc" * 5 * KB, {"Content-Length": 10 * KB}),
-            ("/put_30m", "cde" * 10 * MB, {"Content-Length": 30 * MB}),
+            ("/put_1b", b"a", {"Content-Length": 1}),
+            ("/put_10k", b"bc" * 5 * KB, {"Content-Length": 10 * KB}),
+            ("/put_30m", b"cde" * 10 * MB, {"Content-Length": 30 * MB}),
+            ("/put_binary", b"\x89PNG\r\n\x1a\n", {"Content-Length": 8}),
         )
 
         h = k3http.Client(HOST, PORT)
@@ -216,7 +241,7 @@ class TestHttpClient(unittest.TestCase):
         h = k3http.Client(HOST, PORT)
         h.request("")
 
-        expected_body = ("a" * 65540 + "\r\n", "bb\r\n", "c" * 65540)
+        expected_body = (b"a" * 65540 + b"\r\n", b"bb\r\n", b"c" * 65540)
         for idx, line in enumerate(h.readlines()):
             self.assertEqual(expected_body[idx], line)
 
@@ -224,9 +249,23 @@ class TestHttpClient(unittest.TestCase):
         h = k3http.Client(HOST, PORT)
         h.request("")
 
-        expected_body = ("abcd\r", "bcde\r", "cdef\r")
-        for idx, line in enumerate(h.readlines("\r")):
+        expected_body = (b"abcd\r", b"bcde\r", b"cdef\r")
+        for idx, line in enumerate(h.readlines(b"\r")):
             self.assertEqual(expected_body[idx], line)
+
+    def test_read_body_utf8_split_across_recv(self):
+        h = k3http.Client(HOST, PORT)
+        h.request("")
+
+        body = h.read_body(None)
+        self.assertEqual("中".encode(), body)
+
+    def test_read_body_chunked_binary(self):
+        h = k3http.Client(HOST, PORT)
+        h.request("")
+
+        body = h.read_body(None)
+        self.assertEqual(b"\x89PNG\r\n\x1a\n", body)
 
     def test_recving_server_close(self):
         h = k3http.Client(HOST, PORT, 3)
@@ -244,7 +283,7 @@ class TestHttpClient(unittest.TestCase):
         self.assertTrue(succ)
 
     def test_server_delay_response(self):
-        case = ({"content-length": "4"}, "abcd")
+        case = ({"content-length": "4"}, b"abcd")
         expected_headers, expected_body = case
 
         h = k3http.Client(HOST, PORT, 1)
@@ -255,7 +294,7 @@ class TestHttpClient(unittest.TestCase):
         self.assertEqual(expected_body, body)
 
     def test_client_delay_send_data(self):
-        case = ("/client_delay", {"Content-Length": 10}, "abcde" * 2)
+        case = ("/client_delay", {"Content-Length": 10}, b"abcde" * 2)
         uri, headers, body = case
 
         h = k3http.Client(HOST, PORT, 3)
@@ -340,9 +379,9 @@ class TestHttpClient(unittest.TestCase):
 
     def test_https(self):
         cases = (
-            ("/get_1b", "a"),
-            ("/get_10k", "bc" * 5 * KB),
-            ("/get_30m", "cde" * 10 * MB),
+            ("/get_1b", b"a"),
+            ("/get_10k", b"bc" * 5 * KB),
+            ("/get_30m", b"cde" * 10 * MB),
         )
 
         context = ssl._create_unverified_context()
@@ -406,6 +445,18 @@ class TestHttpClient(unittest.TestCase):
             res = "HTTP/1.1 200 OK\r\n\r\n"
             conn.sendall(res.encode("utf-8"))
 
+        elif self._testMethodName == "test_send_body_chunked_utf8":
+            conn, _ = sock.accept()
+            data = b""
+            while not data.endswith(b"\r\n0\r\n\r\n"):
+                buf = conn.recv(1024)
+                if buf == b"":
+                    break
+                data += buf
+
+            TestHttpClient.request_body = data
+            conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+
         else:
             conn, _ = sock.accept()
             data = (conn.recv(1024)).decode("utf-8")
@@ -417,7 +468,7 @@ class TestHttpClient(unittest.TestCase):
             sleep_time, each_send_size, content = res
             try:
                 while len(content) > 0:
-                    conn.sendall((content[:each_send_size]).encode("utf-8"))
+                    conn.sendall(content[:each_send_size])
                     content = content[each_send_size:]
                     time.sleep(sleep_time)
             except socket.error as e:
@@ -493,11 +544,11 @@ class Handle(BaseHTTPRequestHandler):
             return
 
         read_bytes = 0
-        bufs = ""
+        bufs = b""
 
         try:
             while read_bytes < length:
-                bufs += (self.rfile.read(length - read_bytes)).decode("utf-8")
+                bufs += self.rfile.read(length - read_bytes)
                 read_bytes = len(bufs)
 
             TestHttpClient.request_body = bufs

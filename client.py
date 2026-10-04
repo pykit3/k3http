@@ -218,20 +218,24 @@ class Client(object):
 
     def send_body(self, body):
         """
-        Send http request body. It should be a 'str' of data to send after the headers are finished
+        Send http request body. It should be a 'bytes' of data to send after the headers are finished.
+        A 'str' body is encoded as UTF-8.
 
-        :param body: a 'str' of http request body.
+        :param body: a 'bytes' or 'str' of http request body.
         :return: nothing
         """
 
         if self.sock is None:
             raise NotConnectedError("socket object is None")
 
+        if isinstance(body, str):
+            body = body.encode("utf-8")
+
         with self.stopwatch.timer("send_body"):
             if self.request_chunked_encoded:
-                body = "{0:x}\r\n{1}\r\n".format(len(body), body)
+                body = b"%x\r\n%s\r\n" % (len(body), body)
 
-            self.sock.sendall(body.encode("utf-8"))
+            self.sock.sendall(body)
 
     def read_status(self, skip_100=True):
         """
@@ -320,7 +324,7 @@ class Client(object):
         Read and return the response body.
 
         :param size: need read size, if greater than left size use the min one, if 'None' read left unread body.
-        :return: the response body.
+        :return: the response body as 'bytes'.
         """
 
         with self.stopwatch.timer("recv_body"):
@@ -330,19 +334,19 @@ class Client(object):
         """
         Read and yield one line in response body each time.
 
-        :param delimiter: specify the delimiter between each line, defalut supporting '\n'.
-        :return: a generator yileding one line including delimiter in response body each time.
+        :param delimiter: specify the 'bytes' delimiter between each line, defalut supporting b'\n'.
+        :return: a generator yileding one 'bytes' line including delimiter in response body each time.
         """
 
         if delimiter is None:
-            delimiter = "\n"
+            delimiter = b"\n"
 
-        buf = ""
+        buf = b""
         while True:
             tmp = self._read_body(MAX_LINE_LENGTH)
 
-            if tmp == "":
-                if buf != "":
+            if tmp == b"":
+                if buf != b"":
                     yield buf
                 break
 
@@ -356,7 +360,7 @@ class Client(object):
 
     def _read_body(self, size):
         if size is not None and size <= 0:
-            return ""
+            return b""
 
         if self.chunked:
             buf = self._read_chunked(size)
@@ -369,7 +373,7 @@ class Client(object):
             size = min(size, self.content_length - self.has_read)
 
         if size <= 0:
-            return ""
+            return b""
 
         buf = self._read(size)
         self.has_read += size
@@ -407,7 +411,8 @@ class Client(object):
         return self.recv_iter.send(("block", size))
 
     def _readline(self):
-        return self.recv_iter.send(("line", None))
+        line = self.recv_iter.send(("line", None))
+        return line.decode("utf-8")
 
     def _get_response_status(self):
         with self.stopwatch.timer("recv_status"):
@@ -450,7 +455,7 @@ class Client(object):
         buf = []
 
         if self.chunk_left == 0:
-            return ""
+            return b""
 
         while size is None or size > 0:
             if self.chunk_left is None:
@@ -478,7 +483,7 @@ class Client(object):
                 if line == "":
                     break
 
-        return "".join(buf)
+        return b"".join(buf)
 
     def set_timeout(self, timeout):
         self.timeout = timeout
@@ -488,14 +493,14 @@ class Client(object):
 
 
 def _recv_loop(sock, timeout):
-    bufs = [""]
+    bufs = [b""]
     mode, size = yield
 
     while True:
         if mode == "line":
             buf = bufs[0]
-            if "\r\n" in buf:
-                rst, buf = buf.split("\r\n", 1)
+            if b"\r\n" in buf:
+                rst, buf = buf.split(b"\r\n", 1)
                 bufs[0] = buf
                 mode, size = yield rst
                 continue
@@ -512,20 +517,20 @@ def _recv_loop(sock, timeout):
                 bufs.append(_recv(sock, timeout, size - total))
                 total += len(bufs[-1])
 
-            rst = "".join(bufs)
+            rst = b"".join(bufs)
             if size < len(rst):
                 bufs = [rst[size:]]
                 rst = rst[:size]
             else:
-                bufs = [""]
+                bufs = [b""]
             mode, size = yield rst
 
 
 def _recv(sock, timeout, size):
-    buf = ""
+    buf = b""
     for _ in range(2):
         try:
-            buf = (sock.recv(size)).decode("utf-8")
+            buf = sock.recv(size)
             break
         except socket.error as e:
             if len(e.args) <= 0 or e.args[0] != errno.EAGAIN:
