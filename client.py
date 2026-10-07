@@ -538,7 +538,7 @@ def _recv(sock, timeout, size):
             evin, _evout, _everr = select.select([sock.fileno()], [], [], timeout)
 
             if len(evin) <= 0:
-                raise socket.timeout(f"{timeout}s timeout while recv")
+                raise TimeoutError(f"{timeout}s timeout while recv")
 
     if len(buf) <= 0:
         raise OSError(f"got empty when recv {size} bytes")
