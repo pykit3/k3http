@@ -291,7 +291,11 @@ class Client:
             self.chunked = True
             return self.headers
 
-        length = self.headers.get("content-length", "0")
+        length = self.headers.get("content-length")
+        if length is None:
+            # The body ends when the server closes the connection, and
+            # content_length stays None.
+            return self.headers
 
         try:
             self.content_length = int(length)
@@ -363,6 +367,11 @@ class Client:
 
         if self.chunked:
             buf = self._read_chunked(size)
+            self.has_read += len(buf)
+            return buf
+
+        if self.content_length is None:
+            buf = self.recv_iter.send(("close", size))
             self.has_read += len(buf)
             return buf
 
@@ -510,6 +519,25 @@ def _recv_loop(sock, timeout):
                     buf += _recv(sock, timeout, LINE_RECV_LENGTH)
                     bufs[0] = buf
                     continue
+        elif mode == "close":
+            # Read until the server closes the connection, at most size bytes
+            # when size is not None.
+            total = len(bufs[0])
+            while size is None or total < size:
+                n = LINE_RECV_LENGTH if size is None else size - total
+                buf = _recv(sock, timeout, n, allow_empty=True)
+                if buf == b"":
+                    break
+                bufs.append(buf)
+                total += len(buf)
+
+            rst = b"".join(bufs)
+            if size is not None and size < len(rst):
+                bufs = [rst[size:]]
+                rst = rst[:size]
+            else:
+                bufs = [b""]
+            mode, size = yield rst
         else:
             total = len(bufs[0])
             while total < size:
@@ -525,7 +553,7 @@ def _recv_loop(sock, timeout):
             mode, size = yield rst
 
 
-def _recv(sock, timeout, size):
+def _recv(sock, timeout, size, allow_empty=False):
     buf = b""
     for _ in range(2):
         try:
@@ -540,7 +568,8 @@ def _recv(sock, timeout, size):
             if len(evin) <= 0:
                 raise TimeoutError(f"{timeout}s timeout while recv")
 
-    if len(buf) <= 0:
+    # An empty buf means the server closed the connection.
+    if len(buf) <= 0 and not allow_empty:
         raise OSError(f"got empty when recv {size} bytes")
 
     return buf

@@ -155,6 +155,17 @@ class TestHttpClient(unittest.TestCase):
             self.assertEqual(None if chunked else len(bufs), h.content_length)
             self.assertEqual(chunked, h.chunked)
 
+    def test_read_body_until_close(self):
+        # Without Content-Length, the body ends when the server closes the connection.
+        h = k3http.Client(HOST, PORT)
+        h.request("/get_4b_no_length")
+
+        self.assertEqual(b"ab", h.read_body(2))
+        self.assertEqual(b"cd", h.read_body(None))
+        self.assertEqual(b"", h.read_body(None))
+        self.assertEqual(4, h.has_read)
+        self.assertIsNone(h.content_length)
+
     def test_status(self):
         cases = (
             ("/get_200", 200),
@@ -481,6 +492,7 @@ class Handle(BaseHTTPRequestHandler):
         "/get_1b": (200, {"content-length": 1}, (1, "a")),
         "/get_10k": (200, {"content-length": 10 * KB}, (10240, "bc" * 5 * KB)),
         "/get_30m": (200, {"content-length": 30 * MB}, (10 * MB, "cde" * 10 * MB)),
+        "/get_4b_no_length": (200, {"Connection": "close"}, (2, "abcd")),
         "/get_10b_chunked": (200, {"Transfer-Encoding": "chunked"}, (5, "f" * 10)),
         "/get_10k_chunked": (200, {"Transfer-Encoding": "chunked"}, (KB, "gh" * 5 * KB)),
         "/get_30m_chunked": (200, {"Transfer-Encoding": "chunked"}, (10 * MB, "ijk" * 10 * MB)),
