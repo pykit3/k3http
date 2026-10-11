@@ -48,6 +48,16 @@ class TestHttpClient(unittest.TestCase):
             KB,
             b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n8\r\n\x89PNG\r\n\x1a\n\r\n0\r\n\r\n",
         ),
+        "test_read_body_chunked_trailers": (
+            0,
+            KB,
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nabcd\r\n0\r\nX-Checksum: 1\r\n\r\n",
+        ),
+        "test_response_header_casing": (
+            0,
+            KB,
+            b"HTTP/1.1 200 OK\r\ntransfer-ENCODING: Chunked\r\nX-Foo: Bar\r\n\r\n4\r\nabcd\r\n0\r\n\r\n",
+        ),
     }
     request_headers: ClassVar[dict] = {}
     request_body = b""
@@ -274,6 +284,24 @@ class TestHttpClient(unittest.TestCase):
 
         body = h.read_body(None)
         self.assertEqual(b"\x89PNG\r\n\x1a\n", body)
+
+    def test_read_body_chunked_trailers(self):
+        # The trailer after the last chunk is read and dropped.
+        h = k3http.Client(HOST, PORT)
+        h.request("")
+
+        self.assertEqual(b"abcd", h.read_body(None))
+        self.assertEqual(b"", h.read_body(None))
+        self.assertEqual({"transfer-encoding": "chunked"}, h.headers)
+
+    def test_response_header_casing(self):
+        # Header names are case-insensitive, and so is the "chunked" coding.
+        h = k3http.Client(HOST, PORT)
+        h.request("")
+
+        self.assertEqual({"transfer-encoding": "Chunked", "x-foo": "Bar"}, h.headers)
+        self.assertTrue(h.chunked)
+        self.assertEqual(b"abcd", h.read_body(None))
 
     def test_recving_server_close(self):
         h = k3http.Client(HOST, PORT, 3)
