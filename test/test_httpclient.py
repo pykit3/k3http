@@ -7,6 +7,7 @@ import time
 import unittest
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import ClassVar
+from unittest import mock
 
 import k3ut
 
@@ -224,6 +225,30 @@ class TestHttpClient(unittest.TestCase):
             time.sleep(0.1)
 
             self.assertEqual(headers, self.request_headers)
+
+    def test_request_host_port(self):
+        # A test cannot listen on port 80 or 443 without root, so a mock socket records the request.
+        cases = (
+            (80, False, "127.0.0.1"),
+            (8080, False, "127.0.0.1:8080"),
+            (443, False, "127.0.0.1:443"),
+            (443, True, "127.0.0.1"),
+            (80, True, "127.0.0.1:80"),
+        )
+
+        for port, https, host in cases:
+            sock = mock.Mock()
+            https_context = None
+            if https:
+                https_context = mock.Mock()
+                https_context.wrap_socket.return_value = sock
+
+            with mock.patch("socket.socket", return_value=sock):
+                h = k3http.Client(HOST, port, https_context=https_context)
+                h.send_request("/")
+
+            request = f"GET / HTTP/1.1\r\nHost: {host}\r\n\r\n".encode()
+            sock.sendall.assert_called_once_with(request)
 
     def test_response_headers(self):
         cases = (

@@ -200,9 +200,17 @@ class Client:
             f"{method} {uri} HTTP/1.1",
         ]
 
+        default_port = 80
+        if self.https_context is not None:
+            default_port = 443
+
+        host = self.host
+        if self.port != default_port:
+            host = f"{self.host}:{self.port}"
+
         headers = headers or {}
         if "Host" not in headers and "host" not in headers:
-            headers["Host"] = self.host
+            headers["Host"] = host
 
         if headers.get("Transfer-Encoding") == "chunked":
             self.request_chunked_encoded = True
