@@ -59,6 +59,11 @@ class TestHttpClient(unittest.TestCase):
             KB,
             b"HTTP/1.1 200 OK\r\ntransfer-ENCODING: Chunked\r\nX-Foo: Bar\r\n\r\n4\r\nabcd\r\n0\r\n\r\n",
         ),
+        "test_response_chunked_last_coding": (
+            0,
+            KB,
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: gzip, chunked\r\n\r\n4\r\nabcd\r\n0\r\n\r\n",
+        ),
     }
     request_headers: ClassVar[dict] = {}
     request_body = b""
@@ -362,6 +367,14 @@ class TestHttpClient(unittest.TestCase):
         h.request("")
 
         self.assertEqual({"transfer-encoding": "Chunked", "x-foo": "Bar"}, h.headers)
+        self.assertTrue(h.chunked)
+        self.assertEqual(b"abcd", h.read_body(None))
+
+    def test_response_chunked_last_coding(self):
+        # A last "chunked" coding frames the body, after any other coding.
+        h = k3http.Client(HOST, PORT)
+        h.request("")
+
         self.assertTrue(h.chunked)
         self.assertEqual(b"abcd", h.read_body(None))
 

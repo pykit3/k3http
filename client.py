@@ -213,10 +213,8 @@ class Client:
         if "host" not in lower_headers:
             headers["Host"] = host
 
-        # The last transfer coding frames the body, and coding names are case-insensitive (RFC 9112 §6.1, §7).
-        codings = lower_headers.get("transfer-encoding", "").split(",")
-        last_coding = codings[-1].strip().lower()
-        if last_coding == "chunked":
+        code = lower_headers.get("transfer-encoding", "")
+        if _is_chunked(code):
             self.request_chunked_encoded = True
 
         for k, v in headers.items():
@@ -299,7 +297,7 @@ class Client:
             return self.headers
 
         code = self.headers.get("transfer-encoding", "")
-        if code.lower() == "chunked":
+        if _is_chunked(code):
             self.chunked = True
             return self.headers
 
@@ -585,3 +583,10 @@ def _recv(sock, timeout, size, allow_empty=False):
         raise OSError(f"got empty when recv {size} bytes")
 
     return buf
+
+
+def _is_chunked(transfer_encoding: str) -> bool:
+    # The last transfer coding frames the body, and coding names are case-insensitive (RFC 9112 §6.1, §7).
+    codings = transfer_encoding.split(",")
+    last_coding = codings[-1].strip().lower()
+    return last_coding == "chunked"
