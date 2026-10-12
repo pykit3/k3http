@@ -268,6 +268,25 @@ class TestHttpClient(unittest.TestCase):
         expected = [mock.call(request), mock.call(b"3\r\nabc\r\n")]
         self.assertEqual(expected, sock.sendall.call_args_list)
 
+    def test_request_chunked_coding(self):
+        # Coding names are case-insensitive, and a last "chunked" coding frames the body.
+        cases = (
+            ("Chunked", b"3\r\nabc\r\n"),
+            ("gzip, chunked", b"3\r\nabc\r\n"),
+            ("gzip", b"abc"),
+        )
+
+        for coding, body in cases:
+            sock = mock.Mock()
+            with mock.patch("socket.socket", return_value=sock):
+                h = k3http.Client(HOST, PORT)
+                h.send_request("/", "PUT", {"Host": "example.com", "Transfer-Encoding": coding})
+                h.send_body(b"abc")
+
+            request = f"PUT / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: {coding}\r\n\r\n".encode()
+            expected = [mock.call(request), mock.call(body)]
+            self.assertEqual(expected, sock.sendall.call_args_list, coding)
+
     def test_response_headers(self):
         cases = (
             ("/header_res1", {"f": "foo"}),

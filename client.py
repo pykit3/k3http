@@ -213,7 +213,10 @@ class Client:
         if "host" not in lower_headers:
             headers["Host"] = host
 
-        if lower_headers.get("transfer-encoding") == "chunked":
+        # The last transfer coding frames the body, and coding names are case-insensitive (RFC 9112 §6.1, §7).
+        codings = lower_headers.get("transfer-encoding", "").split(",")
+        last_coding = codings[-1].strip().lower()
+        if last_coding == "chunked":
             self.request_chunked_encoded = True
 
         for k, v in headers.items():
