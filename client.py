@@ -208,7 +208,7 @@ class Client:
         if self.port != default_port:
             host = f"{self.host}:{self.port}"
 
-        headers = headers or {}
+        headers = dict(headers or {})
         if "Host" not in headers and "host" not in headers:
             headers["Host"] = host
 

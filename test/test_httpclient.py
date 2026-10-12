@@ -250,6 +250,13 @@ class TestHttpClient(unittest.TestCase):
             request = f"GET / HTTP/1.1\r\nHost: {host}\r\n\r\n".encode()
             sock.sendall.assert_called_once_with(request)
 
+    def test_request_headers_unchanged(self):
+        headers = {"X-Foo": "foo"}
+        h = k3http.Client(HOST, PORT)
+        h.request("/get_1b", headers=headers)
+
+        self.assertEqual({"X-Foo": "foo"}, headers)
+
     def test_response_headers(self):
         cases = (
             ("/header_res1", {"f": "foo"}),
