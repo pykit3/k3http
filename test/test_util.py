@@ -8,6 +8,8 @@ class TestUtil(unittest.TestCase):
         cases = [
             [[{}, "www.123.com"], {"Host": "www.123.com"}],
             [[{"Host": "www.123.com"}, "www.abc.com"], {"Host": "www.123.com"}],
+            [[{"host": "www.123.com"}, "www.abc.com"], {"host": "www.123.com"}],
+            [[{"HOST": "www.123.com"}, "www.abc.com"], {"HOST": "www.123.com"}],
         ]
 
         for case, expected in cases:
@@ -52,6 +54,10 @@ class TestUtil(unittest.TestCase):
                     "headers": {"Host": "www.123.com", "Content-Length": 6},
                     "body": "123abc",
                 },
+            ],
+            [
+                [{"headers": {"HOST": "www.123.com"}}, "www.abc.com"],
+                {"headers": {"HOST": "www.123.com"}},
             ],
         ]
 

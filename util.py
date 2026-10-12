@@ -1,13 +1,16 @@
 def headers_add_host(headers, address):
     """
     If there is no Host field in the headers, insert the address as a Host into the headers.
+    A Host field in any letter case, such as 'host', counts.
 
     :param headers: a 'dict'(header name, header value) of http request headers
     :param address: a string represents a domain name
     :return: headers after adding
     """
 
-    headers.setdefault("Host", address)
+    names = {k.lower() for k in headers}
+    if "host" not in names:
+        headers["Host"] = address
 
     return headers
 
@@ -22,6 +25,6 @@ def request_add_host(request, address):
     """
 
     request.setdefault("headers", {})
-    request["headers"].setdefault("Host", address)
+    headers_add_host(request["headers"], address)
 
     return request
