@@ -156,7 +156,13 @@ class Client:
         self.stopwatch_started = True
 
     def __del__(self):
-        self._close()
+        self.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
 
     def request(self, uri, method="GET", headers=None):
         """
@@ -398,7 +404,14 @@ class Client:
 
         return buf
 
-    def _close(self):
+    def close(self):
+        """
+        Close the connection to the server. Calling it again does nothing,
+        and a later request opens a new connection.
+        A 'with' statement calls it when the block exits.
+
+        :return: nothing
+        """
         if self.recv_iter is not None:
             try:
                 self.recv_iter.close()
@@ -416,7 +429,7 @@ class Client:
         self.sock = None
 
     def _reset_request(self):
-        self._close()
+        self.close()
         self.chunked = False
         self.chunk_left = None
         self.content_length = None

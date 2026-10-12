@@ -425,6 +425,48 @@ class TestHttpClient(unittest.TestCase):
         gc.collect()
         self.assertListEqual([], gc.garbage)
 
+    def test_close(self):
+        h = k3http.Client(HOST, PORT)
+        h.request("/get_1b")
+        sock = h.sock
+
+        h.close()
+        self.assertIsNone(h.sock)
+        self.assertEqual(-1, sock.fileno())
+
+        # A second close() has nothing left to close.
+        h.close()
+        self.assertIsNone(h.sock)
+
+        # A later request opens a new connection.
+        h.request("/get_1b")
+        self.assertEqual(b"a", h.read_body(None))
+
+    def test_with(self):
+        h = k3http.Client(HOST, PORT)
+        with h as entered:
+            self.assertIs(h, entered)
+            h.request("/get_1b")
+            sock = h.sock
+
+        self.assertIsNone(h.sock)
+        self.assertEqual(-1, sock.fileno())
+
+        # A block that raises closes the connection too.
+        with self.assertRaises(k3http.BadStatusLineError), h:
+            h.request("/invalid_line")
+
+        self.assertIsNone(h.sock)
+
+    def test_del_closes_socket(self):
+        h = k3http.Client(HOST, PORT)
+        h.request("/get_1b")
+        sock = h.sock
+        del h
+
+        gc.collect()
+        self.assertEqual(-1, sock.fileno())
+
     def test_trace(self):
         class FakeErrorDuringHTTP(Exception):
             pass
