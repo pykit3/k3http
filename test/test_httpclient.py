@@ -257,6 +257,17 @@ class TestHttpClient(unittest.TestCase):
 
         self.assertEqual({"X-Foo": "foo"}, headers)
 
+    def test_request_header_casing(self):
+        sock = mock.Mock()
+        with mock.patch("socket.socket", return_value=sock):
+            h = k3http.Client(HOST, PORT)
+            h.send_request("/", "PUT", {"HOST": "example.com", "transfer-encoding": "chunked"})
+            h.send_body(b"abc")
+
+        request = b"PUT / HTTP/1.1\r\nHOST: example.com\r\ntransfer-encoding: chunked\r\n\r\n"
+        expected = [mock.call(request), mock.call(b"3\r\nabc\r\n")]
+        self.assertEqual(expected, sock.sendall.call_args_list)
+
     def test_response_headers(self):
         cases = (
             ("/header_res1", {"f": "foo"}),

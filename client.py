@@ -209,10 +209,11 @@ class Client:
             host = f"{self.host}:{self.port}"
 
         headers = dict(headers or {})
-        if "Host" not in headers and "host" not in headers:
+        lower_headers = {k.lower(): v for k, v in headers.items()}
+        if "host" not in lower_headers:
             headers["Host"] = host
 
-        if headers.get("Transfer-Encoding") == "chunked":
+        if lower_headers.get("transfer-encoding") == "chunked":
             self.request_chunked_encoded = True
 
         for k, v in headers.items():
