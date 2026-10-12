@@ -24,7 +24,7 @@ pip install k3http
 # Synopsis
 
 ```python
-import urllib
+import urllib.parse
 
 import k3http
 
@@ -62,7 +62,7 @@ except (OSError, k3http.HttpError) as e:
     print(repr(e))
 
 
-content = urllib.urlencode({"f": "foo", "b": "bar"})
+content = urllib.parse.urlencode({"f": "foo", "b": "bar"})
 headers = {
     "Host": "www.example.com",
     "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
